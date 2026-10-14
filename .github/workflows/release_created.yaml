@@ -1,0 +1,22 @@
+name: Release Created
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  get-runner-ip:
+    if: startsWith(github.event.release.tag_name, 'release-')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get runner IP address
+        id: ip
+        uses: haythem/public-ip@v1.3
+
+      - name: Display runner IP addresses
+        run: |
+          echo "Release tag: ${{ github.event.release.tag_name }}"
+          echo "IPv4: ${{ steps.ip.outputs.ipv4 }}"
+          echo "IPv6: ${{ steps.ip.outputs.ipv6 }}"
