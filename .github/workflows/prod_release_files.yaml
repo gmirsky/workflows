@@ -1,0 +1,79 @@
+name: Prod Release Files
+
+on:
+  release:
+    types:
+      - created
+      - edited
+
+jobs:
+  checkout-release-files:
+    if: >
+      (github.event.action == 'created' && startsWith(github.event.release.tag_name, 'prod-release-')) ||
+      (github.event.action == 'edited' &&
+       startsWith(github.event.release.tag_name, 'prod-release-') &&
+       github.event.release.prerelease == false &&
+       contains(toJson(github.event.changes), '"prerelease":{"from":true}'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository with tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release-scoped file list
+        id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          current_tag="${{ github.event.release.tag_name }}"
+          echo "Current tag: $current_tag"
+
+          # Find the previous prod-release tag by creation date.
+          mapfile -t tags < <(git tag --list 'prod-release-*' --sort=-creatordate)
+
+          prev_tag=""
+          for i in "${!tags[@]}"; do
+            if [[ "${tags[$i]}" == "$current_tag" ]]; then
+              if (( i + 1 < ${#tags[@]} )); then
+                prev_tag="${tags[$((i + 1))]}"
+              fi
+              break
+            fi
+          done
+
+          if [[ -n "$prev_tag" ]]; then
+            echo "Previous prod tag: $prev_tag"
+            git diff --name-only "$prev_tag" "$current_tag" > changed_files.txt
+          else
+            echo "No previous prod tag found. Using all files from current tag."
+            git ls-tree -r --name-only "$current_tag" > changed_files.txt
+          fi
+
+          sed -i '/^[[:space:]]*$/d' changed_files.txt
+
+          mkdir -p release-files
+          if [[ ! -s changed_files.txt ]]; then
+            echo "No release-scoped files found."
+            echo "file_count=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t file_args < changed_files.txt
+          git archive "$current_tag" "${file_args[@]}" | tar -x -C release-files
+
+          file_count="$(wc -l < changed_files.txt | tr -d ' ')"
+          echo "file_count=$file_count" >> "$GITHUB_OUTPUT"
+
+      - name: Show checked-out files
+        run: |
+          echo "Checked out file count: ${{ steps.files.outputs.file_count }}"
+          find release-files -type f | sort
+
+      - name: Upload release files artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-files-${{ github.event.release.tag_name }}
+          path: release-files
