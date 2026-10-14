@@ -1,0 +1,23 @@
+name: Push to Main
+
+on:
+    push:
+        branches:
+            - main
+        paths:
+            - 'code/**'
+
+jobs:
+    deploy:
+        name: Deploy
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Get IP Addresses
+              id: ip
+              uses: candidob/get-runner-ip@v1.0.0
+
+            - name: See IP Addresses
+              run: |
+                  echo ${{ steps.ip.outputs.ipv4 }}
+                  echo ${{ steps.ip.outputs.ipv6 }}
