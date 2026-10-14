@@ -1,9 +1,9 @@
-name: Release Created
+name: Pre-Release Created
 
 on:
   release:
     types:
-      - created
+      - prereleased
 
 jobs:
   get-runner-ip:
